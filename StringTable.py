@@ -12,6 +12,11 @@ class StringTable:
                               "EN": "Checking this box will generate fraction answers. If you want to generate decimal answers, do not check this box.",
                               "KR": "체크하면 정답이 분수로 나와요. 소수점 표기 정답을 만드려면 체크하지 마세요"}, \
                           "option_bold": {"EN": "Bold", "KR": "볼드체"}, \
+                          "prameter_operands": {"EN": "Number of Operands", "KR": "몇개의 숫자 연산을 할까요?"}, \
+                          "prameter_operands_digit": {
+                              "EN": "How many digit?",
+                              "KR": "몇자리 숫자를 만들까요?"}, \
+                          "prameter_problem_number": {"EN": "Number of Problems", "KR": "몇개의 문제를 만들까요?"}, \
                           }
 
     def findString(self, key, language) -> str:

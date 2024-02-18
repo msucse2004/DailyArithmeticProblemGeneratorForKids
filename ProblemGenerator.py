@@ -12,19 +12,22 @@ from PyQt5.QtGui import QIcon, QFont
 from openpyxl import Workbook
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QStatusBar, QCheckBox, QHBoxLayout, QVBoxLayout, \
-    QToolTip
+    QToolTip, QLineEdit, QComboBox
 from PyQt5.QtWidgets import QApplication, QMainWindow, QAction, qApp
 from PyQt5.QtGui import QIcon
 
 from StringTable import *
+
 __INPUT_DEBUG_MODE__ = False
-__NEGATIVE_CONSTRAINT__ = True
-__FRACTION_CONSTRAINT__ = True
 
 __OPERATOR_PRINT_MAP__:dict = {"+": "+", "-": "-", "*": "x", "/": "÷"}
 __OPERATOR_MAP__ = {"덧셈": "+", "뺄셈": "-", "곱셈": "*", "나눗셈": "/"}
 __OPERATOR_INPUT_MAP__ = {1:"덧셈", 2:"뺄셈", 3:"곱셈", 4:"나눗셈"}
 __OUTPUT_CSV_PATH__ = "./output"
+
+__MAX_OPERAND_NUMBER__ = 11
+__MAX_DIGITS__ = 11
+
 # 중위표기법 후위표기법
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -158,11 +161,11 @@ def convert_string_equation(problem_list: list) -> str:
     return equation_printable
 
 
-def check_constraint(ans: float) -> bool:
-    if __NEGATIVE_CONSTRAINT__:
+def check_constraint(ans: float, negFlag, fractionFlag) -> bool:
+    if not negFlag:
         if ans < 0:
             return False
-    if __FRACTION_CONSTRAINT__:
+    if not fractionFlag:
         if ans % 1 != 0:
             return False
 
@@ -183,7 +186,7 @@ def adjust_column_style(filepath: str) -> None:
 
                 except TypeError:
                     pass
-                cell.font = openpyxl.styles.Font(name='Arial', size=18, bold=True)
+                cell.font = openpyxl.styles.Font(name='Arial', size=18, bold=False)
                 cell.border = openpyxl.styles.Border(left=openpyxl.styles.Side(style='dotted'))
                 #cell.font = openpyxl.styles.Font(name='Arial', size=20)
             adjusted_width = (max_length + 2) * 1.5
@@ -229,6 +232,8 @@ def adjust_column_style(filepath: str) -> None:
 def main():
     num_operand = 0
     problem_count = 0
+    negFlag = False
+    fractionFlag = False
     pd_problem_set = pd.DataFrame()
     if __INPUT_DEBUG_MODE__:
         num_operand = 3
@@ -264,6 +269,20 @@ def main():
 
     print(f"{operator_list} 의 연산 조합 문제를 만들겠습니다.")
 
+    if "뺄셈" in operator_list:
+        option_negative = input("음수가 나오도록 만들까요? Yes: 1, No: 2 ")
+        if option_negative == "1":
+            negFlag = True
+        else:
+            negFlag = False
+
+    if "나눗셈" in operator_list:
+        option_fraction = input("정답이 정수와 분수 어떤걸 원하세요? 정수: 1, 분수: 2 ")
+        if option_fraction == "1":
+            fractionFlag = False
+        else:
+            fractionFlag = True
+
     if __INPUT_DEBUG_MODE__:
         problem_count = 10
     else:
@@ -293,16 +312,23 @@ def main():
         answer = CalculationFraction(postfix_notation)
 
 
-        if answer is not None and check_constraint(answer):
+        if answer is not None and check_constraint(answer, negFlag, fractionFlag):
             #print(f"str problem: {equation_print} ans: {int(answer)}")
             problem_cnt += 1
-            if __FRACTION_CONSTRAINT__:
+            if not fractionFlag:
                 problem_set = {"number": int(problem_cnt), "problem": equation_print, "answer": int(answer)}
             else:
                 if answer.denominator == 1:
                     problem_set = {"number": int(problem_cnt), "problem": equation_print, "answer": int(answer)}
                 else:
-                    problem_set = {"number": int(problem_cnt), "problem": equation_print, "answer": f"{int(answer.numerator/answer.denominator)}과 {answer.numerator%answer.denominator} / {answer.denominator}"}
+                    if int(answer.numerator/answer.denominator) == 0:
+                        problem_set = {"number": int(problem_cnt), "problem": equation_print,
+                                       "answer": f"{answer.numerator % answer.denominator} / {answer.denominator}"}
+                    else:
+                        problem_set = {"number": int(problem_cnt), "problem": equation_print,
+                                       "answer": f"{int(answer.numerator / answer.denominator)} + {answer.numerator % answer.denominator} / {answer.denominator}"}
+
+
             pd_problem_set = pd_problem_set.append(problem_set, ignore_index=True)
 
         if problem_cnt == problem_count:
@@ -319,7 +345,7 @@ def main():
 
 
     pd_problem_set = pd_problem_set[["number", "problem", "answer"]]
-    print(pd_problem_set)
+    #print(pd_problem_set)
 
 
     if not os.path.exists(__OUTPUT_CSV_PATH__):
@@ -358,12 +384,10 @@ def main():
     pd_problem_set_final_student.columns = ["문제", "정답", "문제", "정답", "문제", "정답"]
 
 
-
-
-    print(f"origin:\n{pd_problem_set}")
+    #print(f"origin:\n{pd_problem_set}")
     #print(f"first:\n{pd_problem_set_first}")
     #print(f"second:\n{pd_problem_set_second}")
-    print(f"final:\n{pd_problem_set_final}")
+    #print(f"final:\n{pd_problem_set_final}")
     #pd_problem_set.to_csv(os.path.join(__OUTPUT_CSV_PATH__, "problemset.csv"), encoding='utf-8', index=False)
     #pd_problem_set.to_excel(os.path.join(__OUTPUT_CSV_PATH__, "problemset.xlsx"), encoding='utf-8', index=False)
     #pd_problem_set_final.to_excel(os.path.join(__OUTPUT_CSV_PATH__, "problemset.xlsx"), encoding='utf-8', index=False, header=False)
@@ -380,6 +404,7 @@ def main():
 
     subprocess.call(["explorer", f"{os.getcwd()}\\output"])
 
+
 class DailyArithmeticGenerator(QWidget):
     def __init__(self):
         # https://wikidocs.net/21933
@@ -388,46 +413,44 @@ class DailyArithmeticGenerator(QWidget):
         self.systemLanguage = "KR"
         self.stringTbl = StringTable()
 
+        # Widget for constraint
+        self.checkbox_opt_negative = None
+        self.checkbox_opt_decimal = None
+        self.checkbox_opt_fraction = None
+
+        # Widget for parameters
+        self.edit_operands = None
+        self.combo_operands = None
+        self.edit_operand_digit = []
+        self.combo_operand_digit = []
+        self.edit_problem_num_description = None
+        self.edit_problem_num = None
+
+        # Widget for excel options
+        self.checkbox_opt_bold = None
+
+        self.drawInitial = True
+
+
+        self.createWidgetOptionConstraint()
+        self.createWidgetGenerationparameter()
+        self.creagetWidgetExcelOptions()
+
         self.initUI()
+        self.show()
+
 
     def initUI(self):
         QToolTip.setFont(QFont('SansSerif', 10))
         self.setWindowTitle(self.stringTbl.findString("windowtitle", self.systemLanguage))
         self.setWindowIcon(QIcon('math_icon.ico'))
 
-        curr_date = datetime.now()
-        formatted_date = curr_date.strftime("%Y-%m-%d")
-        self.updateStatusBar(formatted_date)
-
         layout_list = []
 
-        # Options for Problem Generation Constraints
-        options_problem_generation_list = []
-        checkbox_opt_negative = QCheckBox(self.stringTbl.findString("option_negative", self.systemLanguage), self)
-        checkbox_opt_negative.setToolTip(self.stringTbl.findString("option_negative_tip", self.systemLanguage))
-        options_problem_generation_list.append(checkbox_opt_negative)
 
-        checkbox_opt_decimal = QCheckBox(self.stringTbl.findString("option_decimal", self.systemLanguage), self)
-        checkbox_opt_decimal.setToolTip(self.stringTbl.findString("option_decimal_tip", self.systemLanguage))
-        options_problem_generation_list.append(checkbox_opt_decimal)
-
-        checkbox_opt_fraction = QCheckBox(self.stringTbl.findString("option_fraction", self.systemLanguage), self)
-        checkbox_opt_fraction.setToolTip(self.stringTbl.findString("option_fraction_tip", self.systemLanguage))
-        options_problem_generation_list.append(checkbox_opt_fraction)
-
-        layout_options_prob_gen = QHBoxLayout()
-        layout_list.append(layout_options_prob_gen)
-        for widget in options_problem_generation_list:
-            layout_options_prob_gen.addWidget(widget)
-
-        # Parameters for Problem Generation
-
-
-        # Options for Exel
-        checkbox_opt_bold = QCheckBox(self.stringTbl.findString("option_bold", self.systemLanguage), self)
-        layout_options_excel = QHBoxLayout()
-        layout_options_excel.addWidget(checkbox_opt_bold)
-        layout_list.append(layout_options_excel)
+        layout_list.append(self.deployOptionConstraint())
+        layout_list.append(self.deployProblemGeneration())
+        layout_list.append(self.deployOptionExel())
 
         # Deploy layout
         layout_widget = QVBoxLayout()
@@ -435,19 +458,116 @@ class DailyArithmeticGenerator(QWidget):
             layout_widget.addLayout(layout)
 
         self.setLayout(layout_widget)
-
-
-
         self.move(300, 300)
         self.resize(400, 200)
-        self.show()
+        #self.repaint()
+        #self.show()
+        self.drawInitial = False
+
+    def createWidgetOptionConstraint(self):
+        self.checkbox_opt_negative = QCheckBox(self.stringTbl.findString("option_negative", self.systemLanguage), self)
+        self.checkbox_opt_negative.setToolTip(self.stringTbl.findString("option_negative_tip", self.systemLanguage))
+
+        self.checkbox_opt_decimal = QCheckBox(self.stringTbl.findString("option_decimal", self.systemLanguage), self)
+        self.checkbox_opt_decimal.setToolTip(self.stringTbl.findString("option_decimal_tip", self.systemLanguage))
+
+        self.checkbox_opt_fraction = QCheckBox(self.stringTbl.findString("option_fraction", self.systemLanguage), self)
+        self.checkbox_opt_fraction.setToolTip(self.stringTbl.findString("option_fraction_tip", self.systemLanguage))
+
+
+    def createWidgetGenerationparameter(self):
+        self.edit_operands = QLineEdit(self.stringTbl.findString("prameter_operands", self.systemLanguage), self)
+        self.edit_operands.setReadOnly(True)
+        self.edit_operands.adjustSize()
+        self.combo_operands = QComboBox(self)
+        self.combo_operands.currentTextChanged.connect(self.deployOperandsDigit)
+
+        for i in range(2, __MAX_OPERAND_NUMBER__):
+            self.combo_operands.addItem(str(i))
+
+            temp_edit = QLineEdit(self.stringTbl.findString('prameter_operands_digit', self.systemLanguage), self)
+            temp_edit.setVisible(False)
+            temp_combo = QComboBox(self)
+            temp_combo.setVisible(False)
+            for j in range(2, __MAX_OPERAND_NUMBER__):
+                temp_combo.addItem(str(j))
+            self.edit_operand_digit.append(temp_edit)
+            self.combo_operand_digit.append(temp_combo)
+
+        self.edit_problem_num_description = QLineEdit(
+            self.stringTbl.findString("prameter_problem_number", self.systemLanguage), self)
+        self.edit_problem_num_description.setReadOnly(True)
+        self.edit_problem_num_description.adjustSize()
+        self.edit_problem_num = QLineEdit()
+
+
+    def creagetWidgetExcelOptions(self):
+        self.checkbox_opt_bold = QCheckBox(self.stringTbl.findString("option_bold", self.systemLanguage), self)
+
+
+    def deployOptionConstraint(self) -> QHBoxLayout:
+        # Options for Problem Generation Constraints
+        layout_options_prob_gen = QHBoxLayout()
+        layout_options_prob_gen.addWidget(self.checkbox_opt_negative)
+        layout_options_prob_gen.addWidget(self.checkbox_opt_decimal)
+        layout_options_prob_gen.addWidget(self.checkbox_opt_fraction)
+
+        return layout_options_prob_gen
+
+    def deployProblemGeneration(self) -> QVBoxLayout:
+        # Parameters for Problem Generation
+
+        layout_parameters_list = []
+
+        layout_parameters_generation_operands = QHBoxLayout()
+        layout_parameters_generation_operands.addWidget(self.edit_operands)
+        layout_parameters_generation_operands.addWidget(self.combo_operands)
+        layout_parameters_list.append(layout_parameters_generation_operands)
+
+        # configuration for each digit of operands
+        layout_digit_operand = QVBoxLayout()
+        if len(self.edit_operand_digit) >= int(self.combo_operands.currentText()):
+            for i in range(int(self.combo_operands.currentText())):
+                self.edit_operand_digit[i].setVisible(True)
+                self.combo_operand_digit[i].setVisible(True)
+            #for i in range(9):
+                temp_horizontal_layout = QHBoxLayout()
+                temp_horizontal_layout.addWidget(self.edit_operand_digit[i])
+                temp_horizontal_layout.addWidget(self.combo_operand_digit[i])
+                layout_digit_operand.addLayout(temp_horizontal_layout)
+            layout_parameters_list.append(layout_digit_operand)
+
+        layout_parameters_generation_number = QHBoxLayout()
+        layout_parameters_generation_number.addWidget(self.edit_problem_num_description)
+        layout_parameters_generation_number.addWidget(self.edit_problem_num)
+        layout_parameters_list.append(layout_parameters_generation_number)
+
+        layout_parameters_generation = QVBoxLayout()
+        for layout in layout_parameters_list:
+            layout_parameters_generation.addLayout(layout)
+
+        return layout_parameters_generation
+
+    def deployOperandsDigit(self):
+        print(f"[DailyArithmeticGenerator] callback - deployOperandsDigit: {self.combo_operands.currentText()}")
+        #print(f"[DailyArithmeticGenerator] callback - {self.drawInitial}")
+        if not self.drawInitial:
+        #    print(f"[DailyArithmeticGenerator] callback - {self.drawInitial}")
+            self.initUI()
+
+
+    def deployOptionExel(self) -> QHBoxLayout:
+        # Options for Exel
+        layout_options_excel = QHBoxLayout()
+        layout_options_excel.addWidget(self.checkbox_opt_bold)
+        return layout_options_excel
 
     def updateStatusBar(self, msg):
         if msg is not None:
             self.statusBar.showMessage(msg)
 
 if __name__ == "__main__":
-    #main()
-    app = QApplication(sys.argv)
-    ex = DailyArithmeticGenerator()
-    sys.exit(app.exec_())
+    main()
+    #app = QApplication(sys.argv)
+    #ex = DailyArithmeticGenerator()
+    #sys.exit(app.exec_())
