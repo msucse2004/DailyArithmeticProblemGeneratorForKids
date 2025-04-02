@@ -147,6 +147,7 @@ def CalculationFraction(x):
 def convert_string_equation(problem_list: list) -> str:
     equation = ""
     equation_printable = ""
+    print("test")
 
     for token in problem_list:
         if isinstance(token, (int, float, complex)):
